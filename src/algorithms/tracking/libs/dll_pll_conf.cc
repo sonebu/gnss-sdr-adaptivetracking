@@ -155,4 +155,11 @@ void Dll_Pll_Conf::SetFromConfiguration(const ConfigurationInterface *configurat
     bs_stable_best_required = configuration->property(role + ".bs_stable_best_required", bs_stable_best_required);
     bs_min_events_for_lock = configuration->property(role + ".bs_min_events_for_lock", bs_min_events_for_lock);
     bs_use_phase_dot_detector = configuration->property(role + ".bs_use_phase_dot_detector", bs_use_phase_dot_detector);
+
+    gradient_tracking = configuration->property(role + ".gradient_tracking", gradient_tracking);
+    gradient_eta = configuration->property(role + ".gradient_eta", gradient_eta);
+    gradient_eta_phi = configuration->property(role + ".gradient_eta_phi", gradient_eta_phi);
+    gradient_eta_phi_i = configuration->property(role + ".gradient_eta_phi_i", gradient_eta_phi_i);
+    gradient_eta_fd = configuration->property(role + ".gradient_eta_fd", gradient_eta_fd);
+    gradient_eta_tau = configuration->property(role + ".gradient_eta_tau", gradient_eta_tau);
 }

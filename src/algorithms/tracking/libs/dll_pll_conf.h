@@ -86,6 +86,23 @@ public:
     bool dump_mat{true};
     bool tow_to_trk{false};
     bool bs_use_phase_dot_detector{true};
+
+    /*! When true, use joint gradient-descent on correlator-power loss instead of DLL/FLL/PLL
+     *  loop filters (see GPS_L1_CA_Gradient_Tracking adapter). pll_bw_hz / dll_bw_hz are ignored
+     *  for the update; use gradient_eta* instead. */
+    bool gradient_tracking{false};
+    /*! Scalar step size η; used for all dimensions if the *_eta_* specifics are ≤ 0. */
+    double gradient_eta{1.0e-3};
+    /*! If > 0, P-term gain on carrier phase (rad): rem_carr_phase += eta_phi * folded_atan2(Q,I); else gradient_eta. */
+    double gradient_eta_phi{-1.0};
+    /*! If > 0, I-term: doppler += eta_phi_i * folded_atan2(Q,I) [Hz/rad]. Eliminates Δf-induced
+     *  steady-state phase offset (without it, the loop balances Δf with a constant g_phi offset
+     *  and slips when noise crosses ±π/2). 0 disables. */
+    double gradient_eta_phi_i{0.0};
+    /*! If > 0, gain on Doppler (Hz): doppler += eta_fd * fll_diff_atan(P_old,P_new)/Ti/(2pi); else gradient_eta. */
+    double gradient_eta_fd{-1.0};
+    /*! If > 0, gain on code rate [chips/s]: f_code = f_chip - eta_tau * (DLL_nc / Ti); else gradient_eta. */
+    double gradient_eta_tau{-1.0};
 };
 
 

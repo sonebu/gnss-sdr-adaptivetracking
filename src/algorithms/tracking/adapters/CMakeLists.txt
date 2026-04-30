@@ -47,6 +47,7 @@ set(TRACKING_ADAPTER_SOURCES
     glonass_l1_ca_dll_pll_tracking.cc
     glonass_l2_ca_dll_pll_tracking.cc
     gps_l1_ca_dll_pll_tracking.cc
+    gps_l1_ca_gradient_tracking.cc
     gps_l2_m_dll_pll_tracking.cc
     gps_l5_dll_pll_tracking.cc
     galileo_e1_tcp_connector_tracking.cc
@@ -69,6 +70,7 @@ set(TRACKING_ADAPTER_HEADERS
     glonass_l1_ca_dll_pll_tracking.h
     glonass_l2_ca_dll_pll_tracking.h
     gps_l1_ca_dll_pll_tracking.h
+    gps_l1_ca_gradient_tracking.h
     gps_l2_m_dll_pll_tracking.h
     gps_l5_dll_pll_tracking.h
     galileo_e1_tcp_connector_tracking.h
