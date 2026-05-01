@@ -1,10 +1,10 @@
 /*!
- * \file gps_l1_ca_gradient_tracking.cc
- * \brief GPS L1 C/A gradient tracking adapter — enables gradient loop inside dll_pll_veml_tracking.
+ * \file gps_l1_ca_gradient_pi_tracking.cc
+ * \brief GPS L1 C/A PI-shaped gradient tracking adapter — enables PI gradient loop inside dll_pll_veml_tracking.
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "gps_l1_ca_gradient_tracking.h"
+#include "gps_l1_ca_gradient_pi_tracking.h"
 #include "GPS_L1_CA.h"
 #include "configuration_interface.h"
 #include "display.h"
@@ -19,7 +19,7 @@
 #include <absl/log/log.h>
 #endif
 
-GpsL1CaGradientTracking::GpsL1CaGradientTracking(
+GpsL1CaGradientPiTracking::GpsL1CaGradientPiTracking(
     const ConfigurationInterface* configuration,
     const std::string& role,
     unsigned int in_streams,
@@ -31,7 +31,7 @@ GpsL1CaGradientTracking::GpsL1CaGradientTracking(
 }
 
 
-void GpsL1CaGradientTracking::configure_tracking_parameters(
+void GpsL1CaGradientPiTracking::configure_tracking_parameters(
     const ConfigurationInterface* configuration __attribute__((unused)))
 {
     config_params().system = 'G';
@@ -67,16 +67,16 @@ void GpsL1CaGradientTracking::configure_tracking_parameters(
                       << TEXT_RESET << std::endl;
         }
 
-    config_params().gradient_tracking = true;
+    config_params().gradient_pi_tracking = true;
 }
 
 
-void GpsL1CaGradientTracking::create_tracking_block()
+void GpsL1CaGradientPiTracking::create_tracking_block()
 {
     if (config_params().item_type == "gr_complex")
         {
             tracking_sptr_ = dll_pll_veml_make_tracking(config_params());
-            DLOG(INFO) << "Gradient tracking block (" << tracking_sptr_->unique_id() << ")";
+            DLOG(INFO) << "GradientPI tracking block (" << tracking_sptr_->unique_id() << ")";
         }
     else
         {

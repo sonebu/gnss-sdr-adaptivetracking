@@ -72,7 +72,7 @@
 #include "gnss_sdr_make_unique.h"
 #include "gnss_sdr_string_literals.h"
 #include "gps_l1_ca_dll_pll_tracking.h"
-#include "gps_l1_ca_gradient_tracking.h"
+#include "gps_l1_ca_gradient_pi_tracking.h"
 #include "gps_l1_ca_gaussian_tracking.h"
 #include "gps_l1_ca_kf_tracking.h"
 #include "gps_l1_ca_pcps_acquisition.h"
@@ -591,9 +591,9 @@ std::unique_ptr<TrackingInterface> get_trk_block(
         {
             return std::make_unique<GpsL1CaDllPllTracking>(configuration, role, in_streams, out_streams);
         }
-    else if (implementation == "GPS_L1_CA_Gradient_Tracking")
+    else if (implementation == "GPS_L1_CA_Gradient_PI_Tracking")
         {
-            return std::make_unique<GpsL1CaGradientTracking>(configuration, role, in_streams, out_streams);
+            return std::make_unique<GpsL1CaGradientPiTracking>(configuration, role, in_streams, out_streams);
         }
     else if (implementation == "GPS_L1_CA_Gaussian_Tracking")
         {

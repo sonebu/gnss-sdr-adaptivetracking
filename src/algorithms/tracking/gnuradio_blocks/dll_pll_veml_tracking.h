@@ -80,7 +80,7 @@ private:
     void msg_handler_telemetry_to_trk(const pmt::pmt_t &msg);
     void do_correlation_step(const gr_complex *input_samples);
     void run_dll_pll();
-    void run_gradient_tracking_loop();
+    void run_gradient_pi_tracking_loop();
     void check_carrier_phase_coherent_initialization();
     void update_tracking_vars();
     void clear_tracking_vars();
@@ -220,7 +220,7 @@ private:
     bool d_Flag_PLL_180_deg_phase_locked;
     bool d_use_histogram_bit_sync;
     bool d_wait_for_bit_edge{false};
-    bool d_gradient_veml_fallback_warned{false};
+    bool d_gradient_pi_veml_fallback_warned{false};
 };
 
 

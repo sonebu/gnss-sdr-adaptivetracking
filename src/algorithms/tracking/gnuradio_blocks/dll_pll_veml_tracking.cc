@@ -57,7 +57,6 @@
 #include <pmt/pmt_sugar.h>           // for mp
 #include <volk_gnsssdr/volk_gnsssdr.h>
 #include <algorithm>  // for fill_n
-#include <array>
 #include <cmath>      // for fmod, round, floor
 #include <exception>  // for exception
 #include <iostream>   // for cout, cerr
@@ -1257,12 +1256,12 @@ void dll_pll_veml_tracking::do_correlation_step(const gr_complex *input_samples)
 }
 
 
-void dll_pll_veml_tracking::run_gradient_tracking_loop()
+void dll_pll_veml_tracking::run_gradient_pi_tracking_loop()
 {
-    const double eta = d_trk_parameters.gradient_eta;
-    const double eta_phi = (d_trk_parameters.gradient_eta_phi > 0.0) ? d_trk_parameters.gradient_eta_phi : eta;
-    const double eta_fd = (d_trk_parameters.gradient_eta_fd > 0.0) ? d_trk_parameters.gradient_eta_fd : eta;
-    const double eta_tau = (d_trk_parameters.gradient_eta_tau > 0.0) ? d_trk_parameters.gradient_eta_tau : eta;
+    const double eta = d_trk_parameters.gradient_pi_eta;
+    const double eta_phi = (d_trk_parameters.gradient_pi_eta_phi > 0.0) ? d_trk_parameters.gradient_pi_eta_phi : eta;
+    const double eta_fd = (d_trk_parameters.gradient_pi_eta_fd > 0.0) ? d_trk_parameters.gradient_pi_eta_fd : eta;
+    const double eta_tau = (d_trk_parameters.gradient_pi_eta_tau > 0.0) ? d_trk_parameters.gradient_pi_eta_tau : eta;
 
     /* atan2(Q,I), folded to (-pi/2, pi/2] like Costas two-quadrant range (BPSK pi ambiguity). */
     double g_phi = pll_four_quadrant_atan(d_P_accu);
@@ -1297,7 +1296,7 @@ void dll_pll_veml_tracking::run_gradient_tracking_loop()
      * Without the I-term, fll_diff_atan sees ~0 once g_phi sits at a constant offset, so the
      * frequency error never gets corrected and the loop eventually slips past +/-pi/2 (observed
      * sawtooth lock_test). FLL term still helps fast frequency pull-in during transients. */
-    const double eta_phi_i = d_trk_parameters.gradient_eta_phi_i;
+    const double eta_phi_i = d_trk_parameters.gradient_pi_eta_phi_i;
     d_rem_carr_phase_rad += static_cast<float>(eta_phi * g_phi);
     d_carrier_doppler_hz += eta_phi_i * g_phi;
     d_carrier_doppler_hz += eta_fd * fd_err_hz;
@@ -1314,19 +1313,19 @@ void dll_pll_veml_tracking::run_gradient_tracking_loop()
 
 void dll_pll_veml_tracking::run_dll_pll()
 {
-    if (d_trk_parameters.gradient_tracking)
+    if (d_trk_parameters.gradient_pi_tracking)
         {
             if (d_veml)
                 {
-                    if (!d_gradient_veml_fallback_warned)
+                    if (!d_gradient_pi_veml_fallback_warned)
                         {
-                            LOG(WARNING) << "Gradient tracking with VEML is unsupported; using classical DLL/PLL for channel " << d_channel;
-                            d_gradient_veml_fallback_warned = true;
+                            LOG(WARNING) << "GradientPI tracking with VEML is unsupported; using classical DLL/PLL for channel " << d_channel;
+                            d_gradient_pi_veml_fallback_warned = true;
                         }
                 }
             else
                 {
-                    run_gradient_tracking_loop();
+                    run_gradient_pi_tracking_loop();
                     return;
                 }
         }
@@ -1453,7 +1452,7 @@ void dll_pll_veml_tracking::clear_tracking_vars()
     d_carr_ph_history.clear();
     d_code_ph_history.clear();
     d_bit_sync.reset();
-    d_gradient_veml_fallback_warned = false;
+    d_gradient_pi_veml_fallback_warned = false;
 }
 
 
@@ -2197,7 +2196,7 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                                   << d_channel
                                                   << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
                                         // Set narrow taps delay values [chips]
-                                        if (!d_trk_parameters.gradient_tracking)
+                                        if (!d_trk_parameters.gradient_pi_tracking)
                                             {
                                                 d_code_loop_filter.set_update_interval(static_cast<float>(d_current_correlation_time_s));
                                                 d_code_loop_filter.set_noise_bandwidth(d_trk_parameters.dll_bw_narrow_hz);
