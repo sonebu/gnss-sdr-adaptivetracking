@@ -1,16 +1,13 @@
 /*!
- * \file gps_l1_ca_gradient_pi_tracking.cc
- * \brief GPS L1 C/A PI-shaped gradient tracking adapter — enables PI gradient loop inside dll_pll_veml_tracking.
- * SPDX-License-Identifier: GPL-3.0-or-later
+ * \file gps_l1_ca_neural_residual_tracking.cc
+ * \brief GPS L1 C/A classical tracking + neural residual (see neural_residual_tracking_cell).
  */
-
-#include "gps_l1_ca_gradient_pi_tracking.h"
+#include "gps_l1_ca_neural_residual_tracking.h"
 #include "GPS_L1_CA.h"
 #include "configuration_interface.h"
 #include "display.h"
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <iostream>
 
 #if USE_GLOG_AND_GFLAGS
@@ -19,9 +16,9 @@
 #include <absl/log/log.h>
 #endif
 
-GpsL1CaGradientPiTracking::GpsL1CaGradientPiTracking(
-    const ConfigurationInterface* configuration,
-    const std::string& role,
+GpsL1CaNeuralResidualTracking::GpsL1CaNeuralResidualTracking(
+    const ConfigurationInterface *configuration,
+    const std::string &role,
     unsigned int in_streams,
     unsigned int out_streams)
     : BaseDllPllTracking(configuration, role, in_streams, out_streams)
@@ -31,8 +28,8 @@ GpsL1CaGradientPiTracking::GpsL1CaGradientPiTracking(
 }
 
 
-void GpsL1CaGradientPiTracking::configure_tracking_parameters(
-    const ConfigurationInterface* configuration __attribute__((unused)))
+void GpsL1CaNeuralResidualTracking::configure_tracking_parameters(
+    const ConfigurationInterface *configuration __attribute__((unused)))
 {
     config_params().system = 'G';
     const std::array<char, 3> sig{'1', 'C', '\0'};
@@ -67,16 +64,16 @@ void GpsL1CaGradientPiTracking::configure_tracking_parameters(
                       << TEXT_RESET << std::endl;
         }
 
-    config_params().gradient_pi_tracking = true;
+    config_params().neural_residual_tracking = true;
 }
 
 
-void GpsL1CaGradientPiTracking::create_tracking_block()
+void GpsL1CaNeuralResidualTracking::create_tracking_block()
 {
     if (config_params().item_type == "gr_complex")
         {
             tracking_sptr_ = dll_pll_veml_make_tracking(config_params());
-            DLOG(INFO) << "GradientPI tracking block (" << tracking_sptr_->unique_id() << ")";
+            DLOG(INFO) << "Neural residual tracking block (" << tracking_sptr_->unique_id() << ")";
         }
     else
         {

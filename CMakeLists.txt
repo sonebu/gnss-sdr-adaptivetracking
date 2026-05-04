@@ -3727,6 +3727,24 @@ add_custom_target(uninstall
 
 
 ################################################################################
+# LibTorch — required for GPS L1 CA neural residual tracking
+# Default unpack location: sibling directory ../libtorch (same parent as gnss-sdr-adaptivetracking).
+# Override with cmake -DCMAKE_PREFIX_PATH=/where/you/unpacked/libtorch ...
+################################################################################
+list(APPEND CMAKE_PREFIX_PATH "${GNSSSDR_SOURCE_DIR}/../libtorch")
+find_package(Torch REQUIRED)
+string(APPEND CMAKE_CXX_FLAGS " ${TORCH_CXX_FLAGS}")
+# Torch is linked shared; loader must resolve libtorch_cpu.so etc. Embed lib/ without LD_LIBRARYPATH.
+get_filename_component(_torch_c "${Torch_DIR}" DIRECTORY)
+get_filename_component(_torch_share "${_torch_c}" DIRECTORY)
+get_filename_component(_torch_home "${_torch_share}" DIRECTORY)
+set(LIBTORCH_LIB_DIR "${_torch_home}/lib")
+list(APPEND CMAKE_BUILD_RPATH "${LIBTORCH_LIB_DIR}")
+list(APPEND CMAKE_INSTALL_RPATH "${LIBTORCH_LIB_DIR}")
+message(STATUS "LibTorch (neural residual): FOUND — default hint ${GNSSSDR_SOURCE_DIR}/../libtorch (CMAKE_PREFIX_PATH may differ); RUNPATH+ ${LIBTORCH_LIB_DIR}")
+
+
+################################################################################
 # Add subdirectories
 ################################################################################
 add_subdirectory(src)
@@ -3782,6 +3800,8 @@ add_feature_info(ENABLE_INSTALL_TESTS ENABLE_INSTALL_TESTS "Install test binarie
 add_feature_info(ENABLE_BENCHMARKS ENABLE_BENCHMARKS "Enables building of code snippet benchmarks.")
 add_feature_info(ENABLE_EXTERNAL_MATHJAX ENABLE_EXTERNAL_MATHJAX "Use MathJax from an external CDN in HTML docs when doing '${CMAKE_MAKE_PROGRAM_PRETTY_NAME} doc'.")
 add_feature_info(ENABLE_CPUFEATURES ENABLE_CPUFEATURES "Make use of the cpu_features library.")
+set(LIBTORCH_NEURAL_ALWAYS ON)
+add_feature_info(LIBTORCH_NEURAL_ALWAYS LIBTORCH_NEURAL_ALWAYS "LibTorch required for neural residual tracking; default CMake search includes sibling ../libtorch (override CMAKE_PREFIX_PATH for another install).")
 add_feature_info(Boost_USE_STATIC_LIBS Boost_USE_STATIC_LIBS "Use Boost static libraries.")
 
 message(STATUS "")

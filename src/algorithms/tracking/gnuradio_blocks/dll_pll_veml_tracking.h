@@ -23,12 +23,14 @@
 #include "cpu_multicorrelator_real_codes.h"
 #include "dll_pll_conf.h"
 #include "exponential_smoother.h"
+#include "lbca_plan.h"
 #include "gnss_block_interface.h"
 #include "gnss_time.h"  // for timetags produced by File_Timestamp_Signal_Source
 #include "tow_to_trk.h"
 #include "tracking_FLL_PLL_filter.h"  // for PLL/FLL filter
 #include "tracking_loop_filter.h"     // for DLL filter
 #include <boost/circular_buffer.hpp>
+#include <memory>
 #include <gnuradio/block.h>                   // for block
 #include <gnuradio/gr_complex.h>              // for gr_complex
 #include <gnuradio/types.h>                   // for gr_vector_int, gr_vector...
@@ -49,6 +51,7 @@
 
 
 class Gnss_Synchro;
+class NeuralResidualTrackingCell;
 class dll_pll_veml_tracking;
 
 using dll_pll_veml_tracking_sptr = gnss_shared_ptr<dll_pll_veml_tracking>;
@@ -80,7 +83,7 @@ private:
     void msg_handler_telemetry_to_trk(const pmt::pmt_t &msg);
     void do_correlation_step(const gr_complex *input_samples);
     void run_dll_pll();
-    void run_gradient_pi_tracking_loop();
+    void apply_neural_residual();
     void check_carrier_phase_coherent_initialization();
     void update_tracking_vars();
     void clear_tracking_vars();
@@ -220,7 +223,11 @@ private:
     bool d_Flag_PLL_180_deg_phase_locked;
     bool d_use_histogram_bit_sync;
     bool d_wait_for_bit_edge{false};
-    bool d_gradient_pi_veml_fallback_warned{false};
+
+    std::unique_ptr<NeuralResidualTrackingCell> d_neural_cell;
+
+    LbcaPlan d_lbca;
+    float d_lbca_runtime_pll_bw_hz;
 };
 
 

@@ -156,10 +156,59 @@ void Dll_Pll_Conf::SetFromConfiguration(const ConfigurationInterface *configurat
     bs_min_events_for_lock = configuration->property(role + ".bs_min_events_for_lock", bs_min_events_for_lock);
     bs_use_phase_dot_detector = configuration->property(role + ".bs_use_phase_dot_detector", bs_use_phase_dot_detector);
 
-    gradient_pi_tracking = configuration->property(role + ".gradient_pi_tracking", gradient_pi_tracking);
-    gradient_pi_eta = configuration->property(role + ".gradient_pi_eta", gradient_pi_eta);
-    gradient_pi_eta_phi = configuration->property(role + ".gradient_pi_eta_phi", gradient_pi_eta_phi);
-    gradient_pi_eta_phi_i = configuration->property(role + ".gradient_pi_eta_phi_i", gradient_pi_eta_phi_i);
-    gradient_pi_eta_fd = configuration->property(role + ".gradient_pi_eta_fd", gradient_pi_eta_fd);
-    gradient_pi_eta_tau = configuration->property(role + ".gradient_pi_eta_tau", gradient_pi_eta_tau);
+    neural_residual_tracking = configuration->property(role + ".neural_residual_tracking", neural_residual_tracking);
+    neural_hidden = configuration->property(role + ".neural_hidden", neural_hidden);
+    neural_lr = configuration->property(role + ".neural_lr", neural_lr);
+    neural_lambda_delta = configuration->property(role + ".neural_lambda_delta", neural_lambda_delta);
+    neural_warmup_steps = configuration->property(role + ".neural_warmup_steps", neural_warmup_steps);
+    neural_cn0_learn_gate_db = configuration->property(role + ".neural_cn0_learn_gate_db", neural_cn0_learn_gate_db);
+    neural_lock_learn_gate = configuration->property(role + ".neural_lock_learn_gate", neural_lock_learn_gate);
+    neural_max_dphi_rad = configuration->property(role + ".neural_max_dphi_rad", neural_max_dphi_rad);
+    neural_max_df_hz = configuration->property(role + ".neural_max_df_hz", neural_max_df_hz);
+    neural_max_dcode_chips_s = configuration->property(role + ".neural_max_dcode_chips_s", neural_max_dcode_chips_s);
+    neural_grad_clip_norm = configuration->property(role + ".neural_grad_clip_norm", neural_grad_clip_norm);
+    neural_ckpt_load_path = configuration->property(role + ".neural_ckpt_load_path", neural_ckpt_load_path);
+    neural_ckpt_save_path = configuration->property(role + ".neural_ckpt_save_path", neural_ckpt_save_path);
+    neural_ckpt_every_n = configuration->property(role + ".neural_ckpt_every_n", neural_ckpt_every_n);
+
+    cortes2021_tracking_preset = configuration->property(role + ".cortes2021_tracking_preset", cortes2021_tracking_preset);
+
+    lbca_pll_enable = configuration->property(role + ".lbca_pll_enable", lbca_pll_enable);
+    lbca_stats_alpha = configuration->property(role + ".lbca_stats_alpha", lbca_stats_alpha);
+    lbca_T_LBCA = configuration->property(role + ".lbca_T_LBCA", lbca_T_LBCA);
+    lbca_S = configuration->property(role + ".lbca_S", lbca_S);
+    lbca_use_plan = configuration->property(role + ".lbca_use_plan", lbca_use_plan);
+    lbca_pll_delta_bw_hz = configuration->property(role + ".lbca_pll_delta_bw_hz", lbca_pll_delta_bw_hz);
+    lbca_pll_bw_min_hz = configuration->property(role + ".lbca_pll_bw_min_hz", lbca_pll_bw_min_hz);
+    lbca_pll_bw_max_hz = configuration->property(role + ".lbca_pll_bw_max_hz", lbca_pll_bw_max_hz);
+    lbca_warmup_steps = configuration->property(role + ".lbca_warmup_steps", lbca_warmup_steps);
+
+    if (cortes2021_tracking_preset)
+        {
+            dll_bw_hz = 0.1F;
+            fll_bw_hz = 15.0F;
+            pll_bw_hz = 8.0F;
+            pll_filter_order = 3;
+            if (extend_correlation_symbols < 20)
+                {
+                    extend_correlation_symbols = 20;
+                }
+        }
+
+    if (pll_filter_order == 2)
+        {
+            fll_filter_order = 1;
+        }
+    if (pll_filter_order == 3)
+        {
+            fll_filter_order = 2;
+        }
+
+
+    if (neural_residual_tracking && lbca_pll_enable)
+        {
+            LOG(WARNING) << "neural_residual_tracking and lbca_pll_enable are mutually exclusive; disabling LBCA for role \""
+                         << role << "\".";
+            lbca_pll_enable = false;
+        }
 }

@@ -88,6 +88,11 @@ if(ENABLE_CLANG_TIDY)
     endif()
 endif()
 
+if(DEFINED LIBTORCH_LIB_DIR)
+    set_property(TARGET gnss-sdr APPEND PROPERTY BUILD_RPATH "${LIBTORCH_LIB_DIR}")
+    set_property(TARGET gnss-sdr APPEND PROPERTY INSTALL_RPATH "${LIBTORCH_LIB_DIR}")
+endif()
+
 add_custom_command(TARGET gnss-sdr
     POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gnss-sdr>
         ${LOCAL_INSTALL_BASE_DIR}/install/$<TARGET_FILE_NAME:gnss-sdr>

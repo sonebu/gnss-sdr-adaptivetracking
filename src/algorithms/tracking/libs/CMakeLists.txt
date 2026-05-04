@@ -20,6 +20,7 @@ set(TRACKING_LIB_SOURCES
     kf_conf.cc
     bayesian_estimation.cc
     exponential_smoother.cc
+    lbca_plan.cc
     bit_synchronizer.cc
 )
 
@@ -39,6 +40,7 @@ set(TRACKING_LIB_HEADERS
     kf_conf.h
     bayesian_estimation.h
     exponential_smoother.h
+    lbca_plan.h
     bit_synchronizer.h
 )
 

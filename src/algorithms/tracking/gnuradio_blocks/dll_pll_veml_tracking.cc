@@ -22,6 +22,7 @@
  */
 
 #include "dll_pll_veml_tracking.h"
+#include "neural_residual_tracking_cell.h"
 #include "Beidou_B1I.h"
 #include "Beidou_B3I.h"
 #include "GLONASS_L1_L2_CA.h"
@@ -137,8 +138,11 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
       d_dump_mat(d_trk_parameters.dump_mat && d_dump),
       d_acc_carrier_phase_initialized(false),
       d_Flag_PLL_180_deg_phase_locked(false),
-      d_use_histogram_bit_sync(false)
+      d_use_histogram_bit_sync(false),
+      d_lbca(),
+      d_lbca_runtime_pll_bw_hz(d_trk_parameters.pll_bw_hz)
 {
+    d_lbca.reload_from_conf(d_trk_parameters);
 #if GNURADIO_GREATER_THAN_38
     this->set_relative_rate(1, static_cast<uint64_t>(d_trk_parameters.vector_length));
 #else
@@ -740,6 +744,11 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
     d_timetag_waiting = false;
     set_tag_propagation_policy(TPP_DONT);  // no tag propagation, the time tag will be adjusted and regenerated in work()
     d_last_tow_received = std::make_shared<TOW_to_trk>();
+
+    if (d_trk_parameters.neural_residual_tracking)
+        {
+            d_neural_cell = std::make_unique<NeuralResidualTrackingCell>(d_trk_parameters);
+        }
 }
 
 
@@ -1062,6 +1071,10 @@ void dll_pll_veml_tracking::start_tracking()
     d_carrier_loop_filter.initialize(static_cast<float>(d_acq_carrier_doppler_hz));  // initialize the carrier filter
     d_code_loop_filter.initialize();                                                 // initialize the code filter
 
+    d_lbca.reload_from_conf(d_trk_parameters);
+    d_lbca_runtime_pll_bw_hz = d_trk_parameters.pll_bw_hz;
+    d_lbca.reset(static_cast<double>(d_lbca_runtime_pll_bw_hz));
+
     // DEBUG OUTPUT
     std::cout << "Tracking of " << d_systemName << " " << d_signal_pretty_name << " signal started on channel " << d_channel << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
     DLOG(INFO) << "Starting tracking of satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << " on channel " << d_channel;
@@ -1256,80 +1269,50 @@ void dll_pll_veml_tracking::do_correlation_step(const gr_complex *input_samples)
 }
 
 
-void dll_pll_veml_tracking::run_gradient_pi_tracking_loop()
+void dll_pll_veml_tracking::apply_neural_residual()
 {
-    const double eta = d_trk_parameters.gradient_pi_eta;
-    const double eta_phi = (d_trk_parameters.gradient_pi_eta_phi > 0.0) ? d_trk_parameters.gradient_pi_eta_phi : eta;
-    const double eta_fd = (d_trk_parameters.gradient_pi_eta_fd > 0.0) ? d_trk_parameters.gradient_pi_eta_fd : eta;
-    const double eta_tau = (d_trk_parameters.gradient_pi_eta_tau > 0.0) ? d_trk_parameters.gradient_pi_eta_tau : eta;
-
-    /* atan2(Q,I), folded to (-pi/2, pi/2] like Costas two-quadrant range (BPSK pi ambiguity). */
-    double g_phi = pll_four_quadrant_atan(d_P_accu);
-    if (g_phi > HALF_PI)
+    if (!d_trk_parameters.neural_residual_tracking || !d_neural_cell)
         {
-            g_phi -= GNSS_PI;
-        }
-    else if (g_phi < -HALF_PI)
-        {
-            g_phi += GNSS_PI;
+            return;
         }
 
-    /* Match classical DLL: error [chips/Ti] -> [chips/s]; raw (|E|²-|L|²)/(...) is wrong scale vs GNSS-SDR DLL. */
-    double Ti = static_cast<double>(d_current_correlation_time_s);
-    if (Ti < 1.0e-12)
+    double pll_folded = pll_four_quadrant_atan(d_P_accu);
+    if (pll_folded > HALF_PI)
         {
-            Ti = d_code_period;
+            pll_folded -= GNSS_PI;
         }
-    const double code_err_chips_ti = dll_nc_e_minus_l_normalized(d_E_accu, d_L_accu, d_trk_parameters.spc, d_trk_parameters.slope, d_trk_parameters.y_intercept);
-    const double code_err_chips_s = code_err_chips_ti / Ti;
-
-    double fd_err_hz = 0.0;
-    if (d_current_correlation_time_s > 1.0e-12)
+    else if (pll_folded < -HALF_PI)
         {
-            fd_err_hz = fll_diff_atan(d_P_accu_old, d_P_accu, 0.0, static_cast<double>(d_current_correlation_time_s)) / TWO_PI;
+            pll_folded += GNSS_PI;
         }
 
-    /* Carrier loop is PI in g_phi (a 2nd-order PLL):
-     *   P-term (eta_phi):    proportional adjust of rem_carr_phase  -> fast pull-in
-     *   I-term (eta_phi_i):  integrate g_phi into Doppler           -> kills Delta-f-induced
-     *                                                                  steady-state phase offset
-     * Without the I-term, fll_diff_atan sees ~0 once g_phi sits at a constant offset, so the
-     * frequency error never gets corrected and the loop eventually slips past +/-pi/2 (observed
-     * sawtooth lock_test). FLL term still helps fast frequency pull-in during transients. */
-    const double eta_phi_i = d_trk_parameters.gradient_pi_eta_phi_i;
-    d_rem_carr_phase_rad += static_cast<float>(eta_phi * g_phi);
-    d_carrier_doppler_hz += eta_phi_i * g_phi;
-    d_carrier_doppler_hz += eta_fd * fd_err_hz;
+    const float absE = static_cast<float>(std::abs(d_E_accu));
+    const float absP = static_cast<float>(std::abs(d_P_accu));
+    const float absL = static_cast<float>(std::abs(d_L_accu));
 
-    d_code_freq_chips = d_code_chip_rate - eta_tau * code_err_chips_s;
-    if (d_trk_parameters.carrier_aiding)
-        {
-            d_code_freq_chips += d_carrier_doppler_hz * d_code_chip_rate / d_signal_carrier_freq;
-        }
-
-    d_P_accu_old = d_P_accu;
+    d_neural_cell->step_apply_and_learn(
+        d_P_accu.real(),
+        d_P_accu.imag(),
+        absE,
+        absP,
+        absL,
+        static_cast<float>(pll_folded),
+        d_code_error_chips,
+        d_carr_freq_error_hz,
+        d_current_correlation_time_s,
+        d_CN0_SNV_dB_Hz,
+        d_carrier_lock_test,
+        d_trk_parameters.carrier_aiding,
+        d_code_chip_rate,
+        d_signal_carrier_freq,
+        d_rem_carr_phase_rad,
+        d_carrier_doppler_hz,
+        d_code_freq_chips);
 }
 
 
 void dll_pll_veml_tracking::run_dll_pll()
 {
-    if (d_trk_parameters.gradient_pi_tracking)
-        {
-            if (d_veml)
-                {
-                    if (!d_gradient_pi_veml_fallback_warned)
-                        {
-                            LOG(WARNING) << "GradientPI tracking with VEML is unsupported; using classical DLL/PLL for channel " << d_channel;
-                            d_gradient_pi_veml_fallback_warned = true;
-                        }
-                }
-            else
-                {
-                    run_gradient_pi_tracking_loop();
-                    return;
-                }
-        }
-
     // ################## PLL ##########################################################
     // PLL discriminator
     if (d_cloop)
@@ -1415,6 +1398,17 @@ void dll_pll_veml_tracking::run_dll_pll()
                         }
                 }
         }
+
+    if (d_trk_parameters.lbca_pll_enable && !d_trk_parameters.neural_residual_tracking && !d_pull_in_transitory)
+        {
+            const double bw = d_lbca.step_bandwidth_hz(
+                d_carr_phase_error_hz,
+                static_cast<double>(d_lbca_runtime_pll_bw_hz),
+                d_current_correlation_time_s);
+            d_lbca_runtime_pll_bw_hz = static_cast<float>(bw);
+            d_carrier_loop_filter.set_params(d_trk_parameters.fll_bw_hz, d_lbca_runtime_pll_bw_hz,
+                d_trk_parameters.pll_filter_order);
+        }
 }
 
 
@@ -1452,7 +1446,17 @@ void dll_pll_veml_tracking::clear_tracking_vars()
     d_carr_ph_history.clear();
     d_code_ph_history.clear();
     d_bit_sync.reset();
-    d_gradient_pi_veml_fallback_warned = false;
+    if (d_neural_cell)
+        {
+            d_neural_cell->on_tracking_reset();
+        }
+
+    if (d_trk_parameters.lbca_pll_enable && !d_trk_parameters.neural_residual_tracking)
+        {
+            d_lbca.reload_from_conf(d_trk_parameters);
+            d_lbca_runtime_pll_bw_hz = d_trk_parameters.pll_bw_hz;
+            d_lbca.reset(static_cast<double>(d_lbca_runtime_pll_bw_hz));
+        }
 }
 
 
@@ -2090,6 +2094,7 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                         bool next_state = false;
                         // Perform DLL/PLL tracking loop computations. Costas Loop enabled
                         run_dll_pll();
+                        apply_neural_residual();
                         update_tracking_vars();
 
                         // enable write dump file this cycle (valid DLL/PLL cycle)
@@ -2196,12 +2201,16 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                                   << d_channel
                                                   << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
                                         // Set narrow taps delay values [chips]
-                                        if (!d_trk_parameters.gradient_pi_tracking)
+                                        d_code_loop_filter.set_update_interval(static_cast<float>(d_current_correlation_time_s));
+                                        d_code_loop_filter.set_noise_bandwidth(d_trk_parameters.dll_bw_narrow_hz);
+                                        if (d_trk_parameters.lbca_pll_enable)
                                             {
-                                                d_code_loop_filter.set_update_interval(static_cast<float>(d_current_correlation_time_s));
-                                                d_code_loop_filter.set_noise_bandwidth(d_trk_parameters.dll_bw_narrow_hz);
-                                                d_carrier_loop_filter.set_params(d_trk_parameters.fll_bw_hz, d_trk_parameters.pll_bw_narrow_hz, d_trk_parameters.pll_filter_order);
+                                                d_lbca_runtime_pll_bw_hz = d_trk_parameters.pll_bw_narrow_hz;
+                                                d_lbca.clear_statistics(static_cast<double>(d_lbca_runtime_pll_bw_hz));
                                             }
+                                        d_carrier_loop_filter.set_params(d_trk_parameters.fll_bw_hz,
+                                            d_trk_parameters.lbca_pll_enable ? d_lbca_runtime_pll_bw_hz : d_trk_parameters.pll_bw_narrow_hz,
+                                            d_trk_parameters.pll_filter_order);
                                         if (d_veml)
                                             {
                                                 d_local_code_shift_chips[0] = -d_trk_parameters.very_early_late_space_narrow_chips * static_cast<float>(d_code_samples_per_chip);
@@ -2285,6 +2294,7 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                 else
                     {
                         run_dll_pll();
+                        apply_neural_residual();
                         update_tracking_vars();
                         check_carrier_phase_coherent_initialization();
                         if (d_current_data_symbol == 0)

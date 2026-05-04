@@ -28,12 +28,15 @@ if(ENABLE_FPGA)
     )
 endif()
 
+
+
 set(TRACKING_GR_BLOCKS_SOURCES
     dll_pll_veml_tracking.cc
     galileo_e1_tcp_connector_tracking_cc.cc
     gps_l1_ca_tcp_connector_tracking_cc.cc
     gps_l1_ca_gaussian_tracking_cc.cc
     gps_l1_ca_gaussian_tracking_cc.cc
+    neural_residual_tracking_cell.cc
     kf_tracking.cc
     ${OPT_TRACKING_BLOCKS_SOURCES}
 )
@@ -43,6 +46,7 @@ set(TRACKING_GR_BLOCKS_HEADERS
     galileo_e1_tcp_connector_tracking_cc.h
     gps_l1_ca_tcp_connector_tracking_cc.h
     gps_l1_ca_gaussian_tracking_cc.h
+    neural_residual_tracking_cell.h
     kf_tracking.h
     ${OPT_TRACKING_BLOCKS_HEADERS}
 )
@@ -81,6 +85,17 @@ if(ENABLE_GLOG_AND_GFLAGS)
     target_compile_definitions(tracking_gr_blocks PRIVATE -DUSE_GLOG_AND_GFLAGS=1)
 else()
     target_link_libraries(tracking_gr_blocks PRIVATE absl::flags absl::log)
+endif()
+
+if(TARGET torch)
+    target_link_libraries(tracking_gr_blocks PRIVATE torch)
+elseif(TARGET Torch::Torch)
+    target_link_libraries(tracking_gr_blocks PRIVATE Torch::Torch)
+else()
+    target_link_libraries(tracking_gr_blocks PRIVATE ${TORCH_LIBRARIES})
+endif()
+if(DEFINED TORCH_INCLUDE_DIRS)
+    target_include_directories(tracking_gr_blocks PRIVATE ${TORCH_INCLUDE_DIRS})
 endif()
 
 if(GNURADIO_USES_STD_POINTERS)
